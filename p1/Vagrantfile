@@ -1,0 +1,85 @@
+Vagrant.configure("2") do |config|
+  config.vm.box = "debian/bullseye64"  # Use a Debian Bullseye box
+
+  # Define the first machine with a custom name
+  config.vm.define "dboireS" do |machine_one|
+    machine_one.vm.hostname = "dboireS"  # Set a unique hostname
+    machine_one.vm.network "private_network", ip: "192.168.56.110"
+
+    # Provision the machine with the script
+    machine_one.vm.provision "shell", inline: <<-SHELL
+      # Set non-interactive mode
+      export DEBIAN_FRONTEND=noninteractive
+
+      # Update and install curl
+      sudo apt-get update
+      sudo apt-get install -y curl
+
+      # Install K3s in server mode (master node) with a custom node name and IP
+      curl -sSL https://get.k3s.io | sh -s - server --node-ip 192.168.56.110 --node-name dboireS
+
+      # Create the directory for kubeconfig and node-token files
+      sudo mkdir -p /vagrant/confs
+
+      # Copy the kubeconfig file to the shared folder for external access
+      sudo cp /etc/rancher/k3s/k3s.yaml /vagrant/confs/kubeconfig
+
+      # Modify the kubeconfig IP to be the machine's IP
+      sudo sed -i "s/127\\.0\\.0\\.1/192.168.56.110/" /vagrant/confs/kubeconfig
+
+      # Extract the node token for the agent to join the cluster
+      sudo cat /var/lib/rancher/k3s/server/node-token > /vagrant/confs/node-token
+    SHELL
+
+    # Provider settings for VirtualBox
+    machine_one.vm.provider "virtualbox" do |vb|
+      vb.memory = "1024"
+      vb.cpus = 1
+    end
+  end
+
+  # Define the second machine with a custom name
+  config.vm.define "hbelleSW" do |machine_two|
+    machine_two.vm.hostname = "hbelleSW"  # Set a unique hostname
+    machine_two.vm.network "private_network", ip: "192.168.56.111"
+
+    # Provision the machine with the script to join the cluster
+    machine_two.vm.provision "shell", inline: <<-SHELL
+      # Set non-interactive mode
+      export DEBIAN_FRONTEND=noninteractive
+
+      # Update and install curl
+      echo "Updating package list..."
+      sudo apt-get update
+      echo "Installing curl..."
+      sudo apt-get install -y curl
+
+      # Wait for the node-token file to be available
+      echo "Waiting for node-token file..."
+      while [ ! -f /vagrant/confs/node-token ]; do sleep 1; done
+      echo "node-token file found. Attempting to join the cluster..."
+
+      # Retrieve the token and join the K3s cluster
+      K3S_TOKEN=$(cat /vagrant/confs/node-token)
+      echo "K3S_TOKEN: $K3S_TOKEN"
+      
+      # Keep trying to join the cluster until successful
+      while true; do
+        curl -sfL https://get.k3s.io | K3S_URL=https://192.168.56.110:6443 K3S_TOKEN=$K3S_TOKEN sh -s - agent --node-ip 192.168.56.111 --node-name hbelleSW
+        if [ $? -eq 0 ]; then
+          echo "Successfully joined the cluster."
+          break
+        else
+          echo "Failed to join the cluster. Retrying in 2 seconds..."
+          sleep 2
+        fi
+      done
+    SHELL
+
+    # Provider settings for VirtualBox
+    machine_two.vm.provider "virtualbox" do |vb|
+      vb.memory = "1024"
+      vb.cpus = 1
+    end
+  end
+end
