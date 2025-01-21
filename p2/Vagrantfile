@@ -20,8 +20,22 @@ Vagrant.configure("2") do |config|
       sudo chmod +x ./kubectl
       sudo mv ./kubectl /usr/local/bin/kubectl
 
+      # Fix permissions for kubeconfig file
+      sudo chmod 644 /etc/rancher/k3s/k3s.yaml
+      sudo chown vagrant:vagrant /etc/rancher/k3s/k3s.yaml
+
       # Wait for K3s to be fully set up
-      sleep 20
+      echo "Waiting for K3s to be fully set up..."
+      while ! sudo kubectl get nodes --kubeconfig /etc/rancher/k3s/k3s.yaml; do
+        echo "Waiting for K3s server to be ready..."
+        sleep 5
+      done
+
+      # Set KUBECONFIG environment variable for the current session
+      export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
+      # Add KUBECONFIG to the user's shell profile for future sessions
+      echo 'export KUBECONFIG=/etc/rancher/k3s/k3s.yaml' >> /home/vagrant/.bashrc
 
       # Set up Kubernetes resources (ConfigMaps, Deployments, Services, Ingress)
       kubectl apply -f /vagrant/k8s/configmaps/app1-configmap.yaml
