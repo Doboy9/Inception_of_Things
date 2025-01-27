@@ -6,9 +6,9 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/your-username/your-repo.git  # Your GitHub repo with manifests
+    repoURL: https://github.com/Doboy9/Inception_of_Things/  # Your GitHub repo with manifests
     targetRevision: main  # Or the branch where your config is
-    path: ../k8s/manifests  # Path to the Kubernetes manifests in your repo
+    path: p3/k8s-manifests/  # Path to the Kubernetes manifests in your repo
   destination:
     server: https://kubernetes.default.svc
     namespace: dev  # Namespace in your cluster where the app will be deployed
